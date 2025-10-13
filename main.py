@@ -1,25 +1,29 @@
 import pygame
 from player import Player
 from pipes import Pipe
+from ui import TextButton, Slider, ToggleButton, load_highscore, save_highscore
 import math
 import os
 
 pygame.init()
+pygame.mixer.init()
+
+point_sound = pygame.mixer.Sound("data/point.mp3")
+point_sound.set_volume(0.6)
 
 WIDTH, HEIGHT = 1280, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Flappy Bird Clone")
 
-background = pygame.image.load("images/background.png").convert()
+background = pygame.image.load("data/background.png").convert()
 background = pygame.transform.scale(background, (WIDTH, HEIGHT))
 
-font_path = "images/Bellerose.ttf"
+font_path = "data/Bellerose.ttf"
 font_big = pygame.font.Font(font_path, 110)
 font_medium = pygame.font.Font(font_path, 70)
 font_small = pygame.font.Font(font_path, 45)
 
 bird = Player(200, HEIGHT // 2, HEIGHT)
-
 PIPE_COUNT = 4
 PIPE_SPACING = 400
 pipes = [Pipe(i, PIPE_SPACING, PIPE_COUNT, WIDTH, HEIGHT) for i in range(PIPE_COUNT)]
@@ -30,67 +34,51 @@ game_started = False
 game_over = False
 score = 0
 frame_count = 0
-
-HIGHSCORE_FILE = "highscore.txt"
-
-def load_highscore():
-    if os.path.exists(HIGHSCORE_FILE):
-        try:
-            with open(HIGHSCORE_FILE, "r") as f:
-                return int(f.read().strip())
-        except:
-            return 0
-    else:
-        return 0
-
-def save_highscore(value):
-    with open(HIGHSCORE_FILE, "w") as f:
-        f.write(str(value))
+options_menu = False
+pipe_speed = 5
+volume = 0.6
+muted = False
 
 highscore = load_highscore()
 
-class TextButton:
-    def __init__(self, text, y, font, base_color, hover_color):
-        self.text = text
-        self.y = y
-        self.font = font
-        self.base_color = base_color
-        self.hover_color = hover_color
-        self.rendered_text = None
-        self.rect = None
-
-    def draw(self, surface):
-        mouse_pos = pygame.mouse.get_pos()
-        color = self.hover_color if self.is_hovered(mouse_pos) else self.base_color
-        self.rendered_text = self.font.render(self.text, True, color)
-        self.rect = self.rendered_text.get_rect(center=(WIDTH // 2, self.y))
-        surface.blit(self.rendered_text, self.rect)
-
-    def is_hovered(self, mouse_pos):
-        return self.rect and self.rect.collidepoint(mouse_pos)
-
-    def is_clicked(self, event):
-        return event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered(event.pos)
-
-
-button_gap = 95 
-base_y = HEIGHT // 2 + 70 
+button_gap = 95
+base_y = HEIGHT // 2 + 70
 
 start_button = TextButton("START", base_y, font_medium, (180, 180, 180), (230, 230, 230))
 options_button = TextButton("OPTIONS", base_y + button_gap, font_medium, (180, 180, 180), (230, 230, 230))
 quit_button = TextButton("QUIT", base_y + button_gap * 2, font_medium, (180, 180, 180), (230, 230, 230))
 
+options_y = HEIGHT // 2 - 200
+option_spacing = 130  # vertical space 
+pipe_speed_slider = Slider(WIDTH // 2 - 250, options_y + 60, 500, 2, 12, pipe_speed)
+volume_slider = Slider(WIDTH // 2 - 250, options_y + option_spacing + 60, 500, 0.0, 1.0, volume)
+mute_button = ToggleButton(WIDTH // 2, options_y + option_spacing * 2 + 30, font_small)
+back_button = TextButton("BACK", options_y + option_spacing * 3 + 50, font_medium,
+                         (180, 180, 180), (230, 230, 230))
 
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-        if not game_started and not game_over:
+        if options_menu:
+            pipe_speed_slider.handle_event(event)
+            volume_slider.handle_event(event)
+            if mute_button.handle_event(event):
+                muted = mute_button.is_on
+
+            if back_button.is_clicked(event):
+                options_menu = False
+                pipe_speed = int(pipe_speed_slider.get_value())
+                volume = volume_slider.get_value()
+                point_sound.set_volume(0 if muted else volume)
+            continue
+
+        if not game_started and not game_over and not options_menu:
             if start_button.is_clicked(event):
                 game_started = True
             elif options_button.is_clicked(event):
-                print("Options menu not implemented yet.")
+                options_menu = True
             elif quit_button.is_clicked(event):
                 running = False
 
@@ -106,28 +94,61 @@ while running:
 
     screen.blit(background, (0, 0))
 
-    if not game_started and not game_over:
+    # OPTIONS MENU
+    if options_menu:
         overlay = pygame.Surface((WIDTH, HEIGHT))
         overlay.set_alpha(210)
         overlay.fill((10, 10, 10))
         screen.blit(overlay, (0, 0))
 
-        title_y = HEIGHT // 2 - 360  
+        # Title
+        title_text = font_big.render("OPTIONS", True, (200, 200, 200))
+        title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 300))
+        screen.blit(title_text, title_rect)
+
+        # Pipe Speed
+        label_speed = font_small.render(f"Pipe Speed: {int(pipe_speed_slider.get_value())}", True, (180, 180, 180))
+        label_speed_rect = label_speed.get_rect(center=(WIDTH // 2, pipe_speed_slider.rect.y - 40))
+        screen.blit(label_speed, label_speed_rect)
+        pipe_speed_slider.draw(screen)
+
+        # Volume
+        label_vol = font_small.render(f"Volume: {volume_slider.get_value():.2f}", True, (180, 180, 180))
+        label_vol_rect = label_vol.get_rect(center=(WIDTH // 2, volume_slider.rect.y - 40))
+        screen.blit(label_vol, label_vol_rect)
+        volume_slider.draw(screen)
+
+        mute_button.draw(screen)
+        back_button.draw(screen)
+
+        pygame.display.flip()
+        clock.tick(60)
+        continue
+
+
+    # MAIN MENU
+    if not game_started and not game_over and not options_menu:
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.set_alpha(210)
+        overlay.fill((10, 10, 10))
+        screen.blit(overlay, (0, 0))
+
+        title_y = HEIGHT // 2 - 360
         title_shadow = font_big.render("FLAPPY BIRD", True, (5, 5, 5))
         title_text = font_big.render("FLAPPY BIRD", True, (200, 200, 200))
-        screen.blit(title_shadow, (WIDTH//2 - title_shadow.get_width()//2 + 5, title_y + 5))
-        screen.blit(title_text, (WIDTH//2 - title_text.get_width()//2, title_y))
+        screen.blit(title_shadow, (WIDTH // 2 - title_shadow.get_width() // 2 + 5, title_y + 5))
+        screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, title_y))
 
         hs_y = title_y + 150
         hs_text = font_small.render(f"High Score: {highscore}", True, (180, 180, 180))
-        screen.blit(hs_text, (WIDTH//2 - hs_text.get_width()//2, hs_y))
+        screen.blit(hs_text, (WIDTH // 2 - hs_text.get_width() // 2, hs_y))
 
         mouse_pos = pygame.mouse.get_pos()
         hovered_button = None
         for button in [start_button, options_button, quit_button]:
             if button.is_hovered(mouse_pos):
                 hovered_button = button
-                break  
+                break
 
         for button in [start_button, options_button, quit_button]:
             color = button.hover_color if button == hovered_button else button.base_color
@@ -144,11 +165,11 @@ while running:
         clock.tick(60)
         continue
 
-
+    # GAMEPLAY
     if not game_over:
         bird.update()
         for pipe in pipes:
-            pipe.update()
+            pipe.update(speed=pipe_speed)
             if pipe.collides_with(bird.rect):
                 game_over = True
                 if score > highscore:
@@ -157,6 +178,8 @@ while running:
             if not pipe.passed and pipe.x + pipe.pipe_width < bird.x:
                 score += 1
                 pipe.passed = True
+                if not muted:
+                    point_sound.play()
 
     for pipe in pipes:
         pipe.draw(screen)
@@ -173,14 +196,14 @@ while running:
 
         lose_shadow = font_big.render("YOU LOSE!", True, (10, 10, 10))
         lose_text = font_big.render("YOU LOSE!", True, (180, 50, 50))
-        screen.blit(lose_shadow, (WIDTH//2 - lose_shadow.get_width()//2 + 4, HEIGHT//2 - 120 + 4))
-        screen.blit(lose_text, (WIDTH//2 - lose_text.get_width()//2, HEIGHT//2 - 120))
+        screen.blit(lose_shadow, (WIDTH // 2 - lose_shadow.get_width() // 2 + 4, HEIGHT // 2 - 120 + 4))
+        screen.blit(lose_text, (WIDTH // 2 - lose_text.get_width() // 2, HEIGHT // 2 - 120))
 
         restart_text = font_medium.render("Press R to Restart", True, (180, 180, 180))
-        screen.blit(restart_text, (WIDTH//2 - restart_text.get_width()//2, HEIGHT//2 + 60))
+        screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2 + 60))
 
         hs_text = font_small.render(f"High Score: {highscore}", True, (200, 200, 200))
-        screen.blit(hs_text, (WIDTH//2 - hs_text.get_width()//2, HEIGHT//2 + 150))
+        screen.blit(hs_text, (WIDTH // 2 - hs_text.get_width() // 2, HEIGHT // 2 + 150))
 
     pygame.display.flip()
     clock.tick(60)

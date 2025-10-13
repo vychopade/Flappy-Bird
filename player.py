@@ -9,8 +9,8 @@ class Player:
         self.lift = -9
         self.screen_height = screen_height
 
-        self.bird_up = pygame.image.load("images/bird2.png").convert_alpha()  #wings up
-        self.bird_down = pygame.image.load("images/bird3.png").convert_alpha() #wings down
+        self.bird_up = pygame.image.load("data/bird2.png").convert_alpha()  #wings up
+        self.bird_down = pygame.image.load("data/bird3.png").convert_alpha() #wings down
 
         self.bird_up = pygame.transform.scale(self.bird_up, (60, 60))
         self.bird_down = pygame.transform.scale(self.bird_down, (60, 60))
