@@ -4,12 +4,16 @@ from pipes import Pipe
 from ui import TextButton, Slider, ToggleButton, load_highscore, save_highscore
 import math
 import os
+import random
 
 pygame.init()
 pygame.mixer.init()
 
 point_sound = pygame.mixer.Sound("data/point.mp3")
 point_sound.set_volume(0.6)
+pygame.mixer.music.load("data/main_song.ogg")
+pygame.mixer.music.set_volume(0.6)
+pygame.mixer.music.play(-1) 
 
 WIDTH, HEIGHT = 1280, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -62,8 +66,12 @@ while running:
             running = False
 
         if options_menu:
+
             pipe_speed_slider.handle_event(event)
             volume_slider.handle_event(event)
+            volume = volume_slider.get_value()
+            pygame.mixer.music.set_volume(0 if muted else volume)
+
             if mute_button.handle_event(event):
                 muted = mute_button.is_on
 
@@ -71,8 +79,9 @@ while running:
                 options_menu = False
                 pipe_speed = int(pipe_speed_slider.get_value())
                 volume = volume_slider.get_value()
-                point_sound.set_volume(0 if muted else volume)
+                point_sound.set_volume(0 if muted else volume*0.5)
             continue
+
 
         if not game_started and not game_over and not options_menu:
             if start_button.is_clicked(event):
